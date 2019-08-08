@@ -38,12 +38,23 @@ def read_template_media_list(path):
 
 
 def read_template_pair_list(path):
-    pairs = np.loadtxt(path, dtype=str)
-    t1 = pairs[:,0].astype(np.int)
-    t2 = pairs[:,1].astype(np.int)
-    label = pairs[:,2].astype(np.int)
-    return t1, t2, label
+    ## modified by quyan @ 2019.8.8
+    # pairs = np.loadtxt(path, dtype=str)
+    # t1 = pairs[:,0].astype(np.int)
+    # t2 = pairs[:,1].astype(np.int)
+    # label = pairs[:,2].astype(np.int)
+    # return t1, t2, label
+    t1=[]
+    t2=[]
+    label=[]
+    with open(path,'r') as f:
+        a=f.readlines()
+        for i in range(len(a)):
+            t1.append(int(a[i].strip().split(" ")[0]))
+            t2.append(int(a[i].strip().split(" ")[1]))
+            label.append(int(a[i].strip().split(" ")[2]))
 
+    return np.array(t1), np.array(t2), np.array(label)
 
 # In[4]:
 
@@ -191,8 +202,8 @@ start = timeit.default_timer()
 #img_feats = read_image_feature('./MS1MV2/IJBB_MS1MV2_r100_arcface.pkl')
 img_path = './IJBC/loose_crop'
 img_list_path = './IJBC/meta/ijbc_name_5pts_score.txt'
-model_path = './pretrained_models/MS1MV2-ResNet34-Arcface/model'
-gpu_id = 4
+model_path = './pretrained_models/MS1MV2-ResNet100-Arcface/model'
+gpu_id = [5, 6]
 img_feats, faceness_scores = get_image_feature(img_path, img_list_path, model_path, gpu_id)
 stop = timeit.default_timer()
 print('Time: %.2f s. ' % (stop - start))
@@ -260,7 +271,7 @@ print('Time: %.2f s. ' % (stop - start))
 # In[36]:
 
 
-score_save_name = './IJBC/result/MS1MV2-ResNet34-ArcFace-TestMode(Baseline).npy'
+score_save_name = './IJBC/result/MS1MV2-ResNet100-ArcFace-TestMode(Baseline).npy'
 np.save(score_save_name, score)
 
 

@@ -331,7 +331,9 @@ def train_net(args):
         elif args.ckpt==2:
           do_save = True
         elif args.ckpt==3:
-          msave = 1
+          # modified by quyan @ 2019.8.8
+          do_save = True
+          msave = 0
 
         if do_save:
           print('saving', msave)

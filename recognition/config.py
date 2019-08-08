@@ -204,7 +204,7 @@ default.lr = 0.1
 default.wd = 0.0005
 default.mom = 0.9
 default.per_batch_size = 128
-default.ckpt = 3
+default.ckpt = 2
 default.lr_steps = '100000,160000,220000'
 default.models_root = './models'
 
