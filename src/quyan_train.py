@@ -970,12 +970,15 @@ def train_net(args):
         #      do_save = True
         #if args.loss_type==1 and mbatch>lr_steps[-1] and mbatch%10000==0:
         #  do_save = True
+        arg, aux = model.get_params()
+        print('saving', 0)
+        mx.model.save_checkpoint(prefix, 0, model.symbol, arg, aux)
         if do_save:
           print('saving', msave)
           if val_dataiter is not None:
             val_test()
-          arg, aux = model.get_params()
           mx.model.save_checkpoint(prefix, msave, model.symbol, arg, aux)
+        
           #if acc>=highest_acc[0]:
           #  lfw_npy = "%s-lfw-%04d" % (prefix, msave)
           #  X = np.concatenate(embeddings_list, axis=0)
