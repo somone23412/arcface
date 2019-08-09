@@ -915,7 +915,7 @@ def train_net(args):
 
 
     highest_acc = [0.0, 0.0]  #lfw and target
-    highest_acc_agedb = 0.0;
+    highest_acc_agedb = 0.0
     #for i in xrange(len(ver_list)):
     #  highest_acc.append(0.0)
     global_step = [0]
