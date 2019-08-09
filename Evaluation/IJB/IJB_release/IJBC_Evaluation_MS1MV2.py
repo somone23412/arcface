@@ -22,7 +22,20 @@ from prettytable import PrettyTable
 from pathlib import Path
 import warnings 
 warnings.filterwarnings("ignore")  
+import argparse
 
+
+def parse_args():
+  parser = argparse.ArgumentParser(description='Train face network')
+  # general
+  parser.add_argument('--img_path', default='./IJBC/loose_crop', help='path to test img')
+  parser.add_argument('--model_name', default='ResNet34-ArcFace', help='model_name')
+  parser.add_argument('--img_list_path', default='./IJBC/meta/ijbc_name_5pts_score.txt', help='path to test img list')
+  parser.add_argument('--model_path', default='./pretrained_models/model-r34-casia-base/model', help='pretrained model to test')
+  parser.add_argument('--epoch_num', type=int, default=0, help='test model at which eopch')
+  parser.add_argument('--gpu_id', default='5,6', help='gpuid')
+  args = parser.parse_args()
+  return args
 
 # In[2]:
 
@@ -156,179 +169,194 @@ def read_score(path):
     return img_feats
 
 
-# # Step1: Load Meta Data
-
-# In[9]:
-
-
-# =============================================================
-# load image and template relationships for template feature embedding
-# tid --> template id,  mid --> media id 
-# format:
-#           image_name tid mid
-# =============================================================
-start = timeit.default_timer()
-templates, medias = read_template_media_list(os.path.join('IJBC/meta', 'ijbc_face_tid_mid.txt'))
-stop = timeit.default_timer()
-print('Time: %.2f s. ' % (stop - start))
-
-
-# In[10]:
-
-
-# =============================================================
-# load template pairs for template-to-template verification
-# tid : template id,  label : 1/0
-# format:
-#           tid_1 tid_2 label
-# =============================================================
-start = timeit.default_timer()
-p1, p2, label = read_template_pair_list(os.path.join('IJBC/meta', 'ijbc_template_pair_label.txt'))
-stop = timeit.default_timer()
-print('Time: %.2f s. ' % (stop - start))
-
-
-# # Step 2: Get Image Features
-
-# In[12]:
-
-
-# =============================================================
-# load image features 
-# format:
-#           img_feats: [image_num x feats_dim] (227630, 512)
-# =============================================================
-start = timeit.default_timer()
-#img_feats = read_image_feature('./MS1MV2/IJBB_MS1MV2_r100_arcface.pkl')
-img_path = './IJBC/loose_crop'
-img_list_path = './IJBC/meta/ijbc_name_5pts_score.txt'
-model_path = './pretrained_models/model-r34-casia-base/model'
-epoch_num = 33
-gpu_id = [5, 6]
-img_feats, faceness_scores = get_image_feature(img_path, img_list_path, model_path, epoch_num, gpu_id)
-stop = timeit.default_timer()
-print('Time: %.2f s. ' % (stop - start))
-print('Feature Shape: ({} , {}) .'.format(img_feats.shape[0], img_feats.shape[1]))
-
-
-# # Step3: Get Template Features
-
-# In[34]:
-
-
-# =============================================================
-# compute template features from image features.
-# =============================================================
-start = timeit.default_timer()
-# ========================================================== 
-# Norm feature before aggregation into template feature?
-# Feature norm from embedding network and faceness score are able to decrease weights for noise samples (not face).
-# ========================================================== 
-# 1. FaceScore （Feature Norm）
-# 2. FaceScore （Detector）
-
-use_norm_score = False # if Ture, TestMode(N1)  
-use_detector_score = False # if Ture, TestMode(D1)
-use_flip_test = False # if Ture, TestMode(F1)
-
-if use_flip_test:
-    # concat --- F1
-    #img_input_feats = img_feats 
-    # add --- F2
-    img_input_feats = img_feats[:,0:img_feats.shape[1]/2] + img_feats[:,img_feats.shape[1]/2:]
-else:
-    img_input_feats = img_feats[:,0:img_feats.shape[1]/2]
+def main():
+    global args
+    args = parse_args()
+    print(args)
     
-if use_norm_score:
-    img_input_feats = img_input_feats
-else:
-    # normalise features to remove norm information
-    img_input_feats = img_input_feats / np.sqrt(np.sum(img_input_feats ** 2, -1, keepdims=True))    
-    
-if use_detector_score:
-    img_input_feats = img_input_feats * np.matlib.repmat(faceness_scores[:,np.newaxis], 1, img_input_feats.shape[1])
-else:
-    img_input_feats = img_input_feats
+    img_path = args.img_path
+    img_list_path = args.img_list_path
+    model_path = args.model_path
+    epoch_num = args.epoch_num
+    # os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
+    gpus = args.gpu_id.split(",")
+    gpu_id = []
+    for gpu in gpus: 
+        gpu_id.append(int(gpu))
+    print('gpu id:', gpu_id)
+    #time.sleep(3600*6.5)
+    # # Step1: Load Meta Data
 
-template_norm_feats, unique_templates = image2template_feature(img_input_feats, templates, medias)
-stop = timeit.default_timer()
-print('Time: %.2f s. ' % (stop - start))
-
-
-# # Step 4: Get Template Similarity Scores
-
-# In[35]:
+    # In[9]:
 
 
-# =============================================================
-# compute verification scores between template pairs.
-# =============================================================
-start = timeit.default_timer()
-score = verification(template_norm_feats, unique_templates, p1, p2)
-stop = timeit.default_timer()
-print('Time: %.2f s. ' % (stop - start))
+    # =============================================================
+    # load image and template relationships for template feature embedding
+    # tid --> template id,  mid --> media id 
+    # format:
+    #           image_name tid mid
+    # =============================================================
+    start = timeit.default_timer()
+    templates, medias = read_template_media_list(os.path.join('IJBC/meta', 'ijbc_face_tid_mid.txt'))
+    stop = timeit.default_timer()
+    print('Time: %.2f s. ' % (stop - start))
 
 
-# In[36]:
+    # In[10]:
 
 
-score_save_name = './IJBC/result/MS1MV2-ResNet34-ArcFace-TestMode(' + str(epoch_num) + ').npy'
-np.save(score_save_name, score)
+    # =============================================================
+    # load template pairs for template-to-template verification
+    # tid : template id,  label : 1/0
+    # format:
+    #           tid_1 tid_2 label
+    # =============================================================
+    start = timeit.default_timer()
+    p1, p2, label = read_template_pair_list(os.path.join('IJBC/meta', 'ijbc_template_pair_label.txt'))
+    stop = timeit.default_timer()
+    print('Time: %.2f s. ' % (stop - start))
 
 
-# # Step 5: Get ROC Curves and TPR@FPR Table
+    # # Step 2: Get Image Features
 
-# In[38]:
-
-
-score_save_path = './IJBC/result'
-files = glob.glob(score_save_path + '/MS1MV2*.npy')  
-methods = []
-scores = []
-for file in files:
-    methods.append(Path(file).stem)
-    scores.append(np.load(file)) 
-methods = np.array(methods)
-scores = dict(zip(methods,scores))
-colours = dict(zip(methods, sample_colours_from_colourmap(methods.shape[0], 'Set2')))
-#x_labels = [1/(10**x) for x in np.linspace(6, 0, 6)]
-x_labels = [10**-6, 10**-5, 10**-4,10**-3, 10**-2, 10**-1]
-tpr_fpr_table = PrettyTable(['Methods'] + map(str, x_labels))
-# fig = plt.figure()
-for method in methods:
-    fpr, tpr, _ = roc_curve(label, scores[method])
-    roc_auc = auc(fpr, tpr)
-    fpr = np.flipud(fpr)
-    tpr = np.flipud(tpr) # select largest tpr at same fpr
-#    plt.plot(fpr, tpr, color=colours[method], lw=1, label=('[%s (AUC = %0.4f %%)]' % (method.split('-')[-1], roc_auc*100)))
-    tpr_fpr_row = []
-    tpr_fpr_row.append(method)
-    for fpr_iter in np.arange(len(x_labels)):
-        _, min_index = min(list(zip(abs(fpr-x_labels[fpr_iter]), range(len(fpr)))))
-        tpr_fpr_row.append('%.4f' % tpr[min_index])
-    tpr_fpr_table.add_row(tpr_fpr_row)
-#plt.xlim([10**-6, 0.1])
-#plt.ylim([0.3, 1.0])
-#plt.grid(linestyle='--', linewidth=1)
-#plt.xticks(x_labels) 
-#plt.yticks(np.linspace(0.3, 1.0, 8, endpoint=True)) 
-#plt.xscale('log')
-#plt.xlabel('False Positive Rate')
-#plt.ylabel('True Positive Rate')
-#plt.title('ROC on IJB-C')
-#plt.legend(loc="lower right")
-#plt.show()
-#fig.savefig('IJB-B.pdf')
+    # In[12]:
 
 
-# In[39]:
+    # =============================================================
+    # load image features 
+    # format:
+    #           img_feats: [image_num x feats_dim] (227630, 512)
+    # =============================================================
+    start = timeit.default_timer()
+    #img_feats = read_image_feature('./MS1MV2/IJBB_MS1MV2_r100_arcface.pkl')
+
+    img_feats, faceness_scores = get_image_feature(img_path, img_list_path, model_path, epoch_num, gpu_id)
+    stop = timeit.default_timer()
+    print('Time: %.2f s. ' % (stop - start))
+    print('Feature Shape: ({} , {}) .'.format(img_feats.shape[0], img_feats.shape[1]))
 
 
-print(tpr_fpr_table)
+    # # Step3: Get Template Features
+
+    # In[34]:
 
 
-# In[ ]:
+    # =============================================================
+    # compute template features from image features.
+    # =============================================================
+    start = timeit.default_timer()
+    # ========================================================== 
+    # Norm feature before aggregation into template feature?
+    # Feature norm from embedding network and faceness score are able to decrease weights for noise samples (not face).
+    # ========================================================== 
+    # 1. FaceScore （Feature Norm）
+    # 2. FaceScore （Detector）
+
+    use_norm_score = False # if Ture, TestMode(N1)  
+    use_detector_score = False # if Ture, TestMode(D1)
+    use_flip_test = False # if Ture, TestMode(F1)
+
+    if use_flip_test:
+        # concat --- F1
+        #img_input_feats = img_feats 
+        # add --- F2
+        img_input_feats = img_feats[:,0:img_feats.shape[1]/2] + img_feats[:,img_feats.shape[1]/2:]
+    else:
+        img_input_feats = img_feats[:,0:img_feats.shape[1]/2]
+        
+    if use_norm_score:
+        img_input_feats = img_input_feats
+    else:
+        # normalise features to remove norm information
+        img_input_feats = img_input_feats / np.sqrt(np.sum(img_input_feats ** 2, -1, keepdims=True))    
+        
+    if use_detector_score:
+        img_input_feats = img_input_feats * np.matlib.repmat(faceness_scores[:,np.newaxis], 1, img_input_feats.shape[1])
+    else:
+        img_input_feats = img_input_feats
+
+    template_norm_feats, unique_templates = image2template_feature(img_input_feats, templates, medias)
+    stop = timeit.default_timer()
+    print('Time: %.2f s. ' % (stop - start))
 
 
-# setting N1D1F2 is the best
+    # # Step 4: Get Template Similarity Scores
 
+    # In[35]:
+
+
+    # =============================================================
+    # compute verification scores between template pairs.
+    # =============================================================
+    start = timeit.default_timer()
+    score = verification(template_norm_feats, unique_templates, p1, p2)
+    stop = timeit.default_timer()
+    print('Time: %.2f s. ' % (stop - start))
+
+
+    # In[36]:
+
+
+    score_save_name = './IJBC/result/MS1MV2-' + args.model_name + '-TestMode(' + str(epoch_num) + 'epoch).npy'
+    np.save(score_save_name, score)
+
+
+    # # Step 5: Get ROC Curves and TPR@FPR Table
+
+    # In[38]:
+
+
+    score_save_path = './IJBC/result'
+    files = glob.glob(score_save_path + '/MS1MV2*.npy')  
+    methods = []
+    scores = []
+    for file in files:
+        methods.append(Path(file).stem)
+        scores.append(np.load(file)) 
+    methods = np.array(methods)
+    scores = dict(zip(methods,scores))
+    colours = dict(zip(methods, sample_colours_from_colourmap(methods.shape[0], 'Set2')))
+    #x_labels = [1/(10**x) for x in np.linspace(6, 0, 6)]
+    x_labels = [10**-6, 10**-5, 10**-4,10**-3, 10**-2, 10**-1]
+    tpr_fpr_table = PrettyTable(['Methods'] + map(str, x_labels))
+    # fig = plt.figure()
+    for method in methods:
+        fpr, tpr, _ = roc_curve(label, scores[method])
+        roc_auc = auc(fpr, tpr)
+        fpr = np.flipud(fpr)
+        tpr = np.flipud(tpr) # select largest tpr at same fpr
+    #    plt.plot(fpr, tpr, color=colours[method], lw=1, label=('[%s (AUC = %0.4f %%)]' % (method.split('-')[-1], roc_auc*100)))
+        tpr_fpr_row = []
+        tpr_fpr_row.append(method)
+        for fpr_iter in np.arange(len(x_labels)):
+            _, min_index = min(list(zip(abs(fpr-x_labels[fpr_iter]), range(len(fpr)))))
+            tpr_fpr_row.append('%.4f' % tpr[min_index])
+        tpr_fpr_table.add_row(tpr_fpr_row)
+    #plt.xlim([10**-6, 0.1])
+    #plt.ylim([0.3, 1.0])
+    #plt.grid(linestyle='--', linewidth=1)
+    #plt.xticks(x_labels) 
+    #plt.yticks(np.linspace(0.3, 1.0, 8, endpoint=True)) 
+    #plt.xscale('log')
+    #plt.xlabel('False Positive Rate')
+    #plt.ylabel('True Positive Rate')
+    #plt.title('ROC on IJB-C')
+    #plt.legend(loc="lower right")
+    #plt.show()
+    #fig.savefig('IJB-B.pdf')
+
+
+    # In[39]:
+
+
+    print(tpr_fpr_table)
+
+
+    # In[ ]:
+
+
+    # setting N1D1F2 is the best
+
+
+if __name__ == '__main__':
+    main()
