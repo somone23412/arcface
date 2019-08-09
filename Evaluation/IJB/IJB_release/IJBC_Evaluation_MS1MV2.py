@@ -68,9 +68,9 @@ def read_image_feature(path):
 # In[5]:
 
 
-def get_image_feature(img_path, img_list_path, model_path, gpu_id):
+def get_image_feature(img_path, img_list_path, model_path, epoch_num, gpu_id):
     img_list = open(img_list_path)
-    embedding = Embedding(model_path, 0, gpu_id)
+    embedding = Embedding(model_path, epoch_num, gpu_id)
     files = img_list.readlines()
     img_feats = []
     faceness_scores = []
@@ -202,9 +202,10 @@ start = timeit.default_timer()
 #img_feats = read_image_feature('./MS1MV2/IJBB_MS1MV2_r100_arcface.pkl')
 img_path = './IJBC/loose_crop'
 img_list_path = './IJBC/meta/ijbc_name_5pts_score.txt'
-model_path = './pretrained_models/MS1MV2-ResNet100-Arcface/model'
+model_path = './pretrained_models/model-r34-casia-base/model'
+epoch_num = 33
 gpu_id = [5, 6]
-img_feats, faceness_scores = get_image_feature(img_path, img_list_path, model_path, gpu_id)
+img_feats, faceness_scores = get_image_feature(img_path, img_list_path, model_path, epoch_num, gpu_id)
 stop = timeit.default_timer()
 print('Time: %.2f s. ' % (stop - start))
 print('Feature Shape: ({} , {}) .'.format(img_feats.shape[0], img_feats.shape[1]))
@@ -271,7 +272,7 @@ print('Time: %.2f s. ' % (stop - start))
 # In[36]:
 
 
-score_save_name = './IJBC/result/MS1MV2-ResNet100-ArcFace-TestMode(Baseline).npy'
+score_save_name = './IJBC/result/MS1MV2-ResNet34-ArcFace-TestMode(' + str(epoch_num) + ').npy'
 np.save(score_save_name, score)
 
 
