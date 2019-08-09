@@ -915,6 +915,7 @@ def train_net(args):
 
 
     highest_acc = [0.0, 0.0]  #lfw and target
+    highest_acc_agedb = 0.0;
     #for i in xrange(len(ver_list)):
     #  highest_acc.append(0.0)
     global_step = [0]
@@ -958,6 +959,15 @@ def train_net(args):
             highest_acc[-1] = acc_list[-1]
             if lfw_score>=0.99:
               do_save = True
+              
+        if len(acc_list)>1:
+          agedb_score = acc_list[2]
+          if agedb_score>highest_acc_agedb:
+            highest_acc_agedb = agedb_score
+            if agedb_score>=0.94:
+              do_save = True
+
+        
         if args.ckpt==0:
           do_save = False
         elif args.ckpt>1:
