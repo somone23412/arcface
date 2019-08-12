@@ -914,8 +914,7 @@ def train_net(args):
       print('VACC: %f'%(acc_value))
 
 
-    highest_acc = [0.0, 0.0]  #lfw and target
-    highest_acc_agedb = 0.0
+    highest_acc = [0.0, 0.0, 0.0, 0.0, 0.0]  #lfw and target
     #for i in xrange(len(ver_list)):
     #  highest_acc.append(0.0)
     global_step = [0]
@@ -930,6 +929,9 @@ def train_net(args):
     else:
       lr_steps = [int(x) for x in args.lr_steps.split(',')]
     print('lr_steps', lr_steps)
+    
+    
+    
     def _batch_callback(param):
       #global global_step
       global_step[0]+=1
@@ -950,36 +952,37 @@ def train_net(args):
         msave = save_step[0]
         do_save = False
         if len(acc_list)>0:
-          lfw_score = acc_list[0]
-          if lfw_score>highest_acc[0]:
-            highest_acc[0] = lfw_score
-            if lfw_score>=0.998:
+          score = {}
+          score['lfw_score'] = acc_list[0]
+          score['cfp_score'] = acc_list[1]
+          score['agedb_score'] = acc_list[2]
+          score['cplfw_score'] = acc_list[3]
+          score['calfw_score'] = acc_list[4]
+          print ('score=', score)
+          if score['lfw_score']>highest_acc[0]:
+            highest_acc[0] = score['lfw_score']
+            if score['lfw_score']>=0.99:
               do_save = True
-          if acc_list[-1]>=highest_acc[-1]:
-            highest_acc[-1] = acc_list[-1]
-            if lfw_score>=0.99:
+          if score['cfp_score'] > highest_acc[1]:
+            highest_acc[1] = score['cfp_score']
+            if score['cfp_score'] > 0.94:
               do_save = True
-              
-        if len(acc_list)>1:
-          agedb_score = acc_list[2]
-          if agedb_score>highest_acc_agedb:
-            highest_acc_agedb = agedb_score
-            if agedb_score>=0.94:
+          if score['agedb_score'] > highest_acc[2]:
+            highest_acc[2] = score['agedb_score']
+            if score['agedb_score'] > 0.93:
               do_save = True
-
-        
+          if score['cplfw_score'] > highest_acc[3]:
+            highest_acc[3] = score['cplfw_score']
+            if score['cplfw_score'] > 0.85:
+              do_save = True
+          if score['calfw_score'] > highest_acc[4]:
+            highest_acc[4] = score['calfw_score']
+            if score['calfw_score'] > 0.9:
+              do_save = True
         if args.ckpt==0:
           do_save = False
         elif args.ckpt>1:
           do_save = True
-        #for i in xrange(len(acc_list)):
-        #  acc = acc_list[i]
-        #  if acc>=highest_acc[i]:
-        #    highest_acc[i] = acc
-        #    if lfw_score>=0.99:
-        #      do_save = True
-        #if args.loss_type==1 and mbatch>lr_steps[-1] and mbatch%10000==0:
-        #  do_save = True
         arg, aux = model.get_params()
         print('saving', 0)
         mx.model.save_checkpoint(prefix, 0, model.symbol, arg, aux)
@@ -988,13 +991,11 @@ def train_net(args):
           if val_dataiter is not None:
             val_test()
           mx.model.save_checkpoint(prefix, msave, model.symbol, arg, aux)
-        
-          #if acc>=highest_acc[0]:
-          #  lfw_npy = "%s-lfw-%04d" % (prefix, msave)
-          #  X = np.concatenate(embeddings_list, axis=0)
-          #  print('saving lfw npy', X.shape)
-          #  np.save(lfw_npy, X)
-        print('[%d]Accuracy-Highest: %1.5f'%(mbatch, highest_acc[-1]))
+        print('[%d]lfw_score_highest: %1.5f' % (mbatch, highest_acc[0]))
+        print('[%d]cfp_score_highest: %1.5f'%(mbatch, highest_acc[1]))
+        print('[%d]agedb_score_highest: %1.5f' % (mbatch, highest_acc[2]))
+        print('[%d]cplfw_score_highest: %1.5f' % (mbatch, highest_acc[3]))
+        print('[%d]calfw_score_highest: %1.5f' % (mbatch, highest_acc[4]))
       if mbatch<=args.beta_freeze:
         _beta = args.beta
       else:
