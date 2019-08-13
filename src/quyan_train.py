@@ -33,6 +33,8 @@ import fnasnet
 import spherenet
 import verification
 import sklearn
+import time
+import copy
 
 # sys.path.append(os.path.join(os.path.dirname(__file__), 'losses'))
 # import center_loss
@@ -597,20 +599,85 @@ def train_net(args):
     epoch_cb = None
     train_dataiter = mx.io.PrefetchingIter(train_dataiter)
 
-    model.fit(train_dataiter,
-              begin_epoch=begin_epoch,
-              num_epoch=end_epoch,
-              eval_data=val_dataiter,
-              eval_metric=eval_metrics,
-              kvstore='device',
-              optimizer=opt,
-              # optimizer_params   = optimizer_params,
-              initializer=initializer,
-              arg_params=arg_params,
-              aux_params=aux_params,
-              allow_missing=True,
-              batch_end_callback=_batch_callback,
-              epoch_end_callback=epoch_cb)
+    # model.fit(train_dataiter,
+    #           begin_epoch=begin_epoch,
+    #           num_epoch=end_epoch,
+    #           eval_data=val_dataiter,
+    #           eval_metric=eval_metrics,
+    #           kvstore='device',
+    #           optimizer=opt,
+    #           # optimizer_params   = optimizer_params,
+    #           initializer=initializer,
+    #           arg_params=arg_params,
+    #           aux_params=aux_params,
+    #           allow_missing=True,
+    #           batch_end_callback=_batch_callback,
+    #           epoch_end_callback=epoch_cb)
+
+    model.bind(data_shapes=train_dataiter.provide_data, label_shapes=train_dataiter.provide_label,
+               for_training=True, force_rebind=False)
+    model.init_params(initializer=initializer, arg_params=arg_params, aux_params=aux_params,
+                      allow_missing=True, force_init=False)
+    model.init_optimizer(kvstore='device', optimizer=opt)
+
+    if not isinstance(eval_metrics, mx.model.metric.EvalMetric):
+        eval_metrics = mx.model.metric.create(eval_metrics)
+    epoch_eval_metric = copy.deepcopy(eval_metrics)
+
+    ################################################################################
+    # training loop
+    ################################################################################
+    for epoch in range(begin_epoch, end_epoch):
+        tic = time.time()
+        eval_metrics.reset()
+        epoch_eval_metric.reset()
+        nbatch = 0
+        data_iter = iter(train_dataiter)
+        end_of_batch = False
+        next_data_batch = next(data_iter)
+        while not end_of_batch:
+            data_batch = next_data_batch
+            model.forward_backward(data_batch)
+            model.update()
+
+            if isinstance(data_batch, list):
+                model.update_metric(eval_metrics,
+                                   [db.label for db in data_batch],
+                                   pre_sliced=True)
+                model.update_metric(epoch_eval_metric,
+                                   [db.label for db in data_batch],
+                                   pre_sliced=True)
+            else:
+                model.update_metric(eval_metrics, data_batch.label)
+                model.update_metric(epoch_eval_metric, data_batch.label)
+
+            try:
+                # pre fetch next batch
+                next_data_batch = next(data_iter)
+                model.prepare(next_data_batch, sparse_row_id_fn=None)
+            except StopIteration:
+                end_of_batch = True
+
+            if end_of_batch:
+                eval_name_vals = epoch_eval_metric.get_name_value()
+
+            batch_end_params = mx.model.BatchEndParam(epoch=epoch, nbatch=nbatch,
+                                             eval_metric=eval_metrics,
+                                             locals=locals())
+            _batch_callback(batch_end_params)
+            nbatch += 1
+
+        # one epoch of training is finished
+        for name, val in eval_name_vals:
+            model.logger.info('Epoch[%d] Train-%s=%f', epoch, name, val)
+        toc = time.time()
+        model.logger.info('Epoch[%d] Time cost=%.3f', epoch, (toc - tic))
+
+        # sync aux params across devices
+        arg_params, aux_params = model.get_params()
+        model.set_params(arg_params, aux_params)
+
+        train_dataiter.reset()
 
 
 def main():
