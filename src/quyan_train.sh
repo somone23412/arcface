@@ -10,12 +10,14 @@ MODELDIR="../models/model-$NETWORK-$JOB"
 mkdir -p "$MODELDIR"
 PREFIX="$MODELDIR/model"
 LOGFILE="$MODELDIR/log"
-CUDA_VISIBLE_DEVICES='0,1,2,3' ../../../anaconda2/bin/python -u quyan_train.py \
+CUDA_VISIBLE_DEVICES='4,5,6,7' ../../../anaconda2/bin/python -u quyan_train.py \
 --data-dir $DATA_DIR \
 --network "$NETWORK" \
 --loss-type 4 \
---lr-steps 40000,60000,80000 \
+--verbose 1000 \
+--lr-steps 40000,80000,120000 \
 --prefix "$PREFIX" \
 --per-batch-size 128 \
 2>&1|tee "$LOGFILE"
 
+# --lr-steps 100000,140000,160000 \
