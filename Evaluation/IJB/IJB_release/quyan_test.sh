@@ -1,5 +1,5 @@
 ../../../../../anaconda2/bin/python IJBC_Evaluation_MS1MV2.py \
---model_path ../../../models/model-r34-casia-base-8.12/model \
---gpu_id 2,3 \
---epoch_num 23 \
---model_name ResNet34-ArcFace-8.12-23
+--model_path ../../../models/model-r34-casia-dev/model \
+--gpu_id 1 \
+--epoch_num 140 \
+--model_name r34-arc-HL-0.01-ft
